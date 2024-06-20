@@ -1,0 +1,368 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'AWS Template for suggesting Vanity Numbers'
+
+Globals:
+  Function:
+    Timeout: 20
+    MemorySize: 512
+    LoggingConfig:
+      LogFormat: JSON
+
+Resources:
+  VanityNumberFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: app-dynamodb
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                Resource: 
+                  - !GetAtt VanityNumberTable.Arn
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !GetAtt VanityNumberFunctionLogGroup.Arn
+
+  VanityNumberFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      RetentionInDays: 1
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-VanityNumberFunction
+
+  VanityNumberFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-VanityNumberFunction
+      Role: !GetAtt VanityNumberFunctionRole.Arn
+      Policies:
+        - AWSLambdaBasicExecutionRole
+      CodeUri: HelloWorldFunction
+      Handler: helloworld.SuggestVanityNumber::handleRequest
+      Runtime: java21
+      MemorySize: 512
+      Environment:
+        Variables:
+          VanityNumberTable: !Ref VanityNumberTable
+          TableRegion: !Sub ${AWS::Region}
+      Events:
+        VanityNumber:
+          Type: Api
+          Properties:
+            Path: /vanitynumber
+            Method: get
+    Metadata:
+      SamResourceId: VanityNumberFunction
+  
+  VanityNumberTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}-VanityNumberTable
+      AttributeDefinitions:
+        - AttributeName: customernumber
+          AttributeType: S
+        - AttributeName: staticPartition
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: N
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: customernumber
+          KeyType: HASH
+      GlobalSecondaryIndexes: 
+        - IndexName: GSI1
+          KeySchema: 
+            - AttributeName: staticPartition
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection: 
+            ProjectionType: ALL
+
+# this role policy needs to improved according least privilege access practice
+  QueryNumberFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: app-dynamodb
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: '*'
+                Resource: '*'
+
+  QueryNumberFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      RetentionInDays: 1
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-QueryNumberFunction
+
+  QueryNumberFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-QueryNumberFunction
+      Role: !GetAtt QueryNumberFunctionRole.Arn
+      CodeUri: HelloWorldFunction
+      Handler: helloworld.QueryLatestItemsHandler::handleRequest
+      Runtime: java21
+      MemorySize: 512
+      Environment:
+        Variables:
+          VanityNumberTable: !Ref VanityNumberTable
+          TableRegion: !Sub ${AWS::Region}
+      Events:
+        VanityNumber:
+          Type: Api
+          Properties:
+            Path: /view
+            Method: get
+    Metadata:
+      SamResourceId: QueryNumberFunction
+          
+
+  # These resources are for contact flow creation and updating contact flow using cutom resource
+  # ContactFlowUpdateFunctionRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     AssumeRolePolicyDocument:
+  #       Version: "2012-10-17"
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service:
+  #               - lambda.amazonaws.com
+  #           Action:
+  #             - 'sts:AssumeRole'
+  #     Path: /
+  #     Policies:
+  #       - PolicyName: app-dynamodb
+  #         PolicyDocument:
+  #           Version: "2012-10-17"
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - connect:CreateContactFlow
+  #                 - connect:DescribeContactFlow
+  #                 - connect:ListContactFlows
+  #                 - connect:UpdateContactFlowContent
+  #                 - connect:UpdateContactFlowName
+  #               Resource: !Sub "arn:aws:connect:${AWS::Region}:533267382956:instance/423a0711-98a8-4f59-b535-e2323065c421/contact-flow/*"
+  #             - Effect: Allow
+  #               Action:
+  #                 - logs:CreateLogGroup
+  #                 - logs:CreateLogStream
+  #                 - logs:PutLogEvents
+  #               Resource:
+  #                 - !GetAtt ContactFlowUpdateFunctionLogGroup.Arn
+
+  # ContactFlowUpdateFunctionLogGroup: 
+  #   Type: AWS::Logs::LogGroup
+  #   Properties: 
+  #     RetentionInDays: 1
+  #     LogGroupName: !Sub /aws/lambda/${AWS::StackName}-ContactFlowUpdateFunction
+
+  # CustomContactFlow:
+  #   Type: AWS::CloudFormation::CustomResource
+  #   Properties:
+  #     ServiceToken: !GetAtt ContactFlowUpdateFunction.Arn
+  #     InstanceId: "423a0711-98a8-4f59-b535-e2323065c421"
+  #     ContactFlowName: !Sub "${AWS::StackName}-SuggestVanityNumberFlow"
+  #     VanityNumberFucntionArn: !GetAtt VanityNumberFunction.Arn
+  #     ContactFlowContent:
+  #       - !Sub |
+  #         {
+  #           "Version": "2019-10-30",
+  #           "StartAction": "e321bfdc-acd8-4ce9-b184-c0ce34dae225",
+  #           "Metadata": {
+  #             "entryPointPosition": {
+  #               "x": 40,
+  #               "y": 40
+  #             },
+  #             "ActionMetadata": {
+  #               "984fd834-b1f5-4df0-bc88-48c1740114ec": {
+  #                 "position": {
+  #                   "x": 904,
+  #                   "y": 236
+  #                 }
+  #               },
+  #               "351668d0-83c7-4a3e-b25e-c6dec44c0118": {
+  #                 "position": {
+  #                   "x": 1131.2,
+  #                   "y": 43.2
+  #                 }
+  #               },
+  #               "52d7fa86-cdca-4a2d-940a-f0d15548821b": {
+  #                 "position": {
+  #                   "x": 684.8,
+  #                   "y": 180.8
+  #                 },
+  #                 "parameters": {
+  #                   "Attributes": {
+  #                     "Vanity Number 1": {
+  #                       "useDynamic": true
+  #                     },
+  #                     "Vanity Number 2": {
+  #                       "useDynamic": true
+  #                     },
+  #                     "Vanity Number 3": {
+  #                       "useDynamic": true
+  #                     }
+  #                   }
+  #                 },
+  #                 "dynamicParams": [
+  #                   "Vanity Number 1",
+  #                   "Vanity Number 2",
+  #                   "Vanity Number 3"
+  #                 ]
+  #               },
+  #               "e321bfdc-acd8-4ce9-b184-c0ce34dae225": {
+  #                 "position": {
+  #                   "x": 117.6,
+  #                   "y": 34.4
+  #                 }
+  #               },
+  #               "SuggestVanityNumber": {
+  #                 "position": {
+  #                   "x": 399.2,
+  #                   "y": 238.4
+  #                 },
+  #                 "isFriendlyName": true,
+  #                 "dynamicMetadata": {}
+  #               }
+  #             },
+  #             "Annotations": [],
+  #             "name": "{{ContactFlowName}}",
+  #             "description": "This Flow invokes lambda and suggests 3 vanity numbers to customers based on their calling number",
+  #             "type": "contactFlow",
+  #             "status": "published",
+  #             "hash": {}
+  #           },
+  #           "Actions": [
+  #             {
+  #               "Parameters": {
+  #                 "Text": "Suggested vanity numbers are first <say-as interpret-as=\"characters\">$.Attributes.VanityNumber1</say-as> second is <say-as interpret-as=\"characters\">$.Attributes.VanityNumber2</say-as> and third is <say-as interpret-as=\"characters\">$.Attributes.VanityNumber3</say-as>"
+  #               },
+  #               "Identifier": "984fd834-b1f5-4df0-bc88-48c1740114ec",
+  #               "Type": "MessageParticipant",
+  #               "Transitions": {
+  #                 "NextAction": "351668d0-83c7-4a3e-b25e-c6dec44c0118",
+  #                 "Errors": [
+  #                   {
+  #                     "NextAction": "351668d0-83c7-4a3e-b25e-c6dec44c0118",
+  #                     "ErrorType": "NoMatchingError"
+  #                   }
+  #                 ]
+  #               }
+  #             },
+  #             {
+  #               "Parameters": {},
+  #               "Identifier": "351668d0-83c7-4a3e-b25e-c6dec44c0118",
+  #               "Type": "DisconnectParticipant",
+  #               "Transitions": {}
+  #             },
+  #             {
+  #               "Parameters": {
+  #                 "Attributes": {
+  #                   "Vanity Number 1": "$.Attributes.Vanity Number 1",
+  #                   "Vanity Number 2": "$.Attributes.Vanity Number 2",
+  #                   "Vanity Number 3": "$.Attributes.Vanity Number 3"
+  #                 },
+  #                 "TargetContact": "Current"
+  #               },
+  #               "Identifier": "52d7fa86-cdca-4a2d-940a-f0d15548821b",
+  #               "Type": "UpdateContactAttributes",
+  #               "Transitions": {
+  #                 "NextAction": "984fd834-b1f5-4df0-bc88-48c1740114ec",
+  #                 "Errors": [
+  #                   {
+  #                     "NextAction": "351668d0-83c7-4a3e-b25e-c6dec44c0118",
+  #                     "ErrorType": "NoMatchingError"
+  #                   }
+  #                 ]
+  #               }
+  #             },
+  #             {
+  #               "Parameters": {
+  #                 "Text": "Hi Welcome Dummy Customer Care"
+  #               },
+  #               "Identifier": "e321bfdc-acd8-4ce9-b184-c0ce34dae225",
+  #               "Type": "MessageParticipant",
+  #               "Transitions": {
+  #                 "NextAction": "SuggestVanityNumber",
+  #                 "Errors": [
+  #                   {
+  #                     "NextAction": "351668d0-83c7-4a3e-b25e-c6dec44c0118",
+  #                     "ErrorType": "NoMatchingError"
+  #                   }
+  #                 ]
+  #               }
+  #             },
+  #             {
+  #               "Parameters": {
+  #                 "LambdaFunctionARN": {{VanityNumberFucntionArn}},
+  #                 "InvocationTimeLimitSeconds": "3",
+  #                 "ResponseValidation": {
+  #                   "ResponseType": "STRING_MAP"
+  #                 }
+  #               },
+  #               "Identifier": "SuggestVanityNumber",
+  #               "Type": "InvokeLambdaFunction",
+  #               "Transitions": {
+  #                 "NextAction": "52d7fa86-cdca-4a2d-940a-f0d15548821b",
+  #                 "Errors": [
+  #                   {
+  #                     "NextAction": "351668d0-83c7-4a3e-b25e-c6dec44c0118",
+  #                     "ErrorType": "NoMatchingError"
+  #                   }
+  #                 ]
+  #               }
+  #             }
+  #           ]
+  #         }
+
+  # ContactFlowUpdateFunction:
+  #   Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+  #   Properties:
+  #     FunctionName: !Sub ${AWS::StackName}-ContactFlowUpdateFunction
+  #     Role: !GetAtt ContactFlowUpdateFunctionRole.Arn
+  #     CodeUri: HelloWorldFunction
+  #     Handler: helloworld.ContactFlowPublisher::handleRequest
+  #     Runtime: java21
+  #     MemorySize: 512
+  #     Environment: # More info about Env Vars: https://github .com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#environment-object
+  #       Variables:
+  #         TableRegion: !Sub ${AWS::Region}
+
+Outputs:
+  ViewNumberApi:
+    Description: API Gateway endpoint URL for Prod stage for Query number function
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/view/"

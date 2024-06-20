@@ -1,0 +1,155 @@
+{
+    "Version": "2019-10-30",
+    "StartAction": "e321bfdc-acd8-4ce9-b184-c0ce34dae225",
+    "Metadata": {
+      "entryPointPosition": {
+        "x": 40,
+        "y": 40
+      },
+      "ActionMetadata": {
+        "984fd834-b1f5-4df0-bc88-48c1740114ec": {
+          "position": {
+            "x": 904,
+            "y": 236
+          }
+        },
+        "e321bfdc-acd8-4ce9-b184-c0ce34dae225": {
+          "position": {
+            "x": 117.6,
+            "y": 34.4
+          }
+        },
+        "351668d0-83c7-4a3e-b25e-c6dec44c0118": {
+          "position": {
+            "x": 1131.2,
+            "y": 43.2
+          }
+        },
+        "52d7fa86-cdca-4a2d-940a-f0d15548821b": {
+          "position": {
+            "x": 684.8,
+            "y": 180.8
+          },
+          "parameters": {
+            "Attributes": {
+              "VanityNumber1": {
+                "useDynamic": true
+              },
+              "VanityNumber2": {
+                "useDynamic": true
+              },
+              "VanityNumber3": {
+                "useDynamic": true
+              }
+            }
+          },
+          "dynamicParams": [
+            "VanityNumber1",
+            "VanityNumber2",
+            "VanityNumber3"
+          ]
+        },
+        "SuggestVanityNumber": {
+          "position": {
+            "x": 399.2,
+            "y": 238.4
+          },
+          "isFriendlyName": true,
+          "parameters": {
+            "LambdaFunctionARN": {
+              "useDynamic": true
+            }
+          },
+          "dynamicMetadata": {},
+          "useDynamic": true
+        }
+      },
+      "Annotations": [],
+      "name": "SuggestVanityNumberFlow",
+      "description": "This Flow invokes lambda and suggests 3 vanity numbers to customers based on their calling number",
+      "type": "contactFlow",
+      "status": "published",
+      "hash": {}
+    },
+    "Actions": [
+      {
+        "Parameters": {
+          "Text": "Suggested vanity numbers are first <say-as interpret-as=\"characters\">$.Attributes.VanityNumber1</say-as> second is <say-as interpret-as=\"characters\">$.Attributes.VanityNumber2</say-as> and third is <say-as interpret-as=\"characters\">$.Attributes.VanityNumber3</say-as>"
+        },
+        "Identifier": "984fd834-b1f5-4df0-bc88-48c1740114ec",
+        "Type": "MessageParticipant",
+        "Transitions": {
+          "NextAction": "351668d0-83c7-4a3e-b25e-c6dec44c0118",
+          "Errors": [
+            {
+              "NextAction": "351668d0-83c7-4a3e-b25e-c6dec44c0118",
+              "ErrorType": "NoMatchingError"
+            }
+          ]
+        }
+      },
+      {
+        "Parameters": {
+          "Text": "Hi Welcome Dummy Customer Care"
+        },
+        "Identifier": "e321bfdc-acd8-4ce9-b184-c0ce34dae225",
+        "Type": "MessageParticipant",
+        "Transitions": {
+          "NextAction": "SuggestVanityNumber",
+          "Errors": [
+            {
+              "NextAction": "351668d0-83c7-4a3e-b25e-c6dec44c0118",
+              "ErrorType": "NoMatchingError"
+            }
+          ]
+        }
+      },
+      {
+        "Parameters": {},
+        "Identifier": "351668d0-83c7-4a3e-b25e-c6dec44c0118",
+        "Type": "DisconnectParticipant",
+        "Transitions": {}
+      },
+      {
+        "Parameters": {
+          "Attributes": {
+            "VanityNumber1": "$.Attributes.VanityNumber1",
+            "VanityNumber2": "$.Attributes.VanityNumber2",
+            "VanityNumber3": "$.Attributes.VanityNumber3"
+          },
+          "TargetContact": "Current"
+        },
+        "Identifier": "52d7fa86-cdca-4a2d-940a-f0d15548821b",
+        "Type": "UpdateContactAttributes",
+        "Transitions": {
+          "NextAction": "984fd834-b1f5-4df0-bc88-48c1740114ec",
+          "Errors": [
+            {
+              "NextAction": "351668d0-83c7-4a3e-b25e-c6dec44c0118",
+              "ErrorType": "NoMatchingError"
+            }
+          ]
+        }
+      },
+      {
+        "Parameters": {
+          "LambdaFunctionARN": "$.CustomerEndpoint.Address",
+          "InvocationTimeLimitSeconds": "3",
+          "ResponseValidation": {
+            "ResponseType": "STRING_MAP"
+          }
+        },
+        "Identifier": "SuggestVanityNumber",
+        "Type": "InvokeLambdaFunction",
+        "Transitions": {
+          "NextAction": "52d7fa86-cdca-4a2d-940a-f0d15548821b",
+          "Errors": [
+            {
+              "NextAction": "351668d0-83c7-4a3e-b25e-c6dec44c0118",
+              "ErrorType": "NoMatchingError"
+            }
+          ]
+        }
+      }
+    ]
+  }

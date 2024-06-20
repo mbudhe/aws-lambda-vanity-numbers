@@ -1,0 +1,164 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: AWS Template for suggesting Vanity Numbers
+Globals:
+  Function:
+    Timeout: 20
+    MemorySize: 512
+    LoggingConfig:
+      LogFormat: JSON
+Resources:
+  VanityNumberFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: app-dynamodb
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - dynamodb:PutItem
+            - dynamodb:GetItem
+            Resource:
+            - Fn::GetAtt:
+              - VanityNumberTable
+              - Arn
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource:
+            - Fn::GetAtt:
+              - VanityNumberFunctionLogGroup
+              - Arn
+  VanityNumberFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 1
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${AWS::StackName}-VanityNumberFunction
+  VanityNumberFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${AWS::StackName}-VanityNumberFunction
+      Role:
+        Fn::GetAtt:
+        - VanityNumberFunctionRole
+        - Arn
+      Policies:
+      - AWSLambdaBasicExecutionRole
+      CodeUri: VanityNumberFunction
+      Handler: helloworld.SuggestVanityNumber::handleRequest
+      Runtime: java21
+      MemorySize: 512
+      Environment:
+        Variables:
+          VanityNumberTable:
+            Ref: VanityNumberTable
+          TableRegion:
+            Fn::Sub: ${AWS::Region}
+      Events:
+        VanityNumber:
+          Type: Api
+          Properties:
+            Path: /vanitynumber
+            Method: get
+    Metadata:
+      SamResourceId: VanityNumberFunction
+  VanityNumberTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName:
+        Fn::Sub: ${AWS::StackName}-VanityNumberTable
+      AttributeDefinitions:
+      - AttributeName: customernumber
+        AttributeType: S
+      - AttributeName: staticPartition
+        AttributeType: S
+      - AttributeName: timestamp
+        AttributeType: N
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+      - AttributeName: customernumber
+        KeyType: HASH
+      GlobalSecondaryIndexes:
+      - IndexName: GSI1
+        KeySchema:
+        - AttributeName: staticPartition
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+        Projection:
+          ProjectionType: ALL
+  QueryNumberFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: app-dynamodb
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action: '*'
+            Resource: '*'
+  QueryNumberFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 1
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${AWS::StackName}-QueryNumberFunction
+  QueryNumberFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: ${AWS::StackName}-QueryNumberFunction
+      Role:
+        Fn::GetAtt:
+        - QueryNumberFunctionRole
+        - Arn
+      CodeUri: QueryNumberFunction
+      Handler: helloworld.QueryLatestItemsHandler::handleRequest
+      Runtime: java21
+      MemorySize: 512
+      Environment:
+        Variables:
+          VanityNumberTable:
+            Ref: VanityNumberTable
+          TableRegion:
+            Fn::Sub: ${AWS::Region}
+      Events:
+        VanityNumber:
+          Type: Api
+          Properties:
+            Path: /view
+            Method: get
+    Metadata:
+      SamResourceId: QueryNumberFunction
+Outputs:
+  ViewNumberApi:
+    Description: API Gateway endpoint URL for Prod stage for Query number function
+    Value:
+      Fn::Sub: https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/view/
