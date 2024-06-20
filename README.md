@@ -79,4 +79,13 @@ Next, you can use AWS Serverless Application Repository to deploy ready to use A
 5. Error Handling needs to be improved
 
 
+## Design 
+<img width="851" alt="image" src="https://github.com/mbudhe/aws-lambda-vanity-numbers/assets/6449344/052c442d-7bc7-4774-b73a-4aaf0830aa57">
+
+## Contact Flow
+<img width="1508" alt="image" src="https://github.com/mbudhe/aws-lambda-vanity-numbers/assets/6449344/937be216-fe25-4ed4-a64d-24fe6858d852">
+
+
+
+
 
